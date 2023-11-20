@@ -1,73 +1,117 @@
 package kg.damir.corotinestart
 
-import android.annotation.SuppressLint
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import kg.damir.corotinestart.databinding.ActivityMainBinding
-import kotlin.concurrent.thread
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private val binding by lazy {
         ActivityMainBinding.inflate(layoutInflater)
     }
-    private val handler = Handler()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
         binding.buttonLoad.setOnClickListener {
-            loadData()
+            binding.progress.isVisible = true
+            binding.buttonLoad.isEnabled = false
+           val jobCity =  lifecycleScope.launch {
+                val city = loadCity()
+                binding.tvLocation.text = city
+            }
+
+            val jobTemp = lifecycleScope.launch {
+                val temp = loadTemperature()
+                binding.tvTemperature.text = temp.toString()
+            }
+
+            lifecycleScope.launch{
+                jobCity.join()
+                jobTemp.join()
+                binding.progress.isVisible = false
+                binding.buttonLoad.isEnabled = true
+            }
         }
     }
 
-    private fun loadData() {
-        Log.d("MainActivity","Load start $this")
-        with(binding) {
-            progress.isVisible = true
-            buttonLoad.isEnabled = false
-            loadCity { city ->
-                tvLocation.text = city
-                loadTemperature(city) {
-                    tvTemperature.text = it.toString()
-                    progress.isVisible = false
-                    buttonLoad.isEnabled = true
-                    Log.d("MainActivity","Load finish $this")
+    private suspend fun loadData() {
+        Log.d("MainActivity", "Load started: $this")
+        binding.progress.isVisible = true
+        binding.buttonLoad.isEnabled = false
+        val city = loadCity()
+
+        binding.tvLocation.text = city
+        val temp = loadTemperature()
+
+        binding.tvTemperature.text = temp.toString()
+        binding.progress.isVisible = false
+        binding.buttonLoad.isEnabled = true
+        Log.d("MainActivity", "Load finished: $this")
+    }
+
+    private fun loadWithoutCoroutine(step: Int = 0, obj: Any? = null) {
+        when (step) {
+            0 -> {
+                Log.d("MainActivity", "Load started: $this")
+                binding.progress.isVisible = true
+                binding.buttonLoad.isEnabled = false
+                loadCityWithoutCoroutine {
+                    loadWithoutCoroutine(1, it)
                 }
-
             }
 
+            1 -> {
+                val city = obj as String
+                binding.tvLocation.text = city
+                loadTemperatureWithoutCoroutine(city) {
+                    loadWithoutCoroutine(2, it)
+                }
+            }
+
+            2 -> {
+                val temp = obj as Int
+                binding.tvTemperature.text = temp.toString()
+                binding.progress.isVisible = false
+                binding.buttonLoad.isEnabled = true
+                Log.d("MainActivity", "Load finished: $this")
+            }
         }
     }
 
-
-    private fun loadCity(callBack: (String) -> Unit) {
-        thread {
-            Thread.sleep(5000)
-            runOnUiThread {
-                callBack.invoke("Moscow")
-            }
-
-        }
+    private fun loadCityWithoutCoroutine(callback: (String) -> Unit) {
+        Handler(Looper.getMainLooper()).postDelayed({
+            callback.invoke("Moscow")
+        }, 5000)
     }
 
-    @SuppressLint("StringFormatInvalid")
-    private fun loadTemperature(city: String, callBack: (Int) -> Unit) {
-        thread {
-            runOnUiThread {
-                Toast.makeText(
-                    this,
-                    getString(R.string.loading_temperature_toast, city),
-                    Toast.LENGTH_SHORT
-                )
-                    .show()
-                Thread.sleep(5000)
-                callBack.invoke(17)
-            }
-        }
+    private suspend fun loadCity(): String {
+        delay(5000)
+        return "Moscow"
+    }
+
+    private fun loadTemperatureWithoutCoroutine(city: String, callback: (Int) -> Unit) {
+        Toast.makeText(
+            this,
+            getString(R.string.loading_temperature_toast, city),
+            Toast.LENGTH_SHORT
+        ).show()
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            callback.invoke(17)
+        }, 5000)
+    }
+
+    private suspend fun loadTemperature(): Int {
+        delay(5000)
+        return 17
     }
 }
