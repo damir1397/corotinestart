@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 class MainViewModel : ViewModel() {
     private val parentJob = Job()
 
-    val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.d(LOG_TAG, "Exception caught $throwable ")
 
     }
